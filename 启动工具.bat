@@ -18,11 +18,6 @@ if %errorlevel% equ 0 (
     exit /b
 )
 
-if exist "%LocalAppData%\Python\bin\python.exe" (
-    "%LocalAppData%\Python\bin\python.exe" "%~dp0step_tool.py"
-    exit /b
-)
-
-echo 未找到 Python 3.x
-echo 请从 https://www.python.org/downloads/ 安装
+echo Python 3.x not found
+echo Install from https://www.python.org/downloads/
 pause

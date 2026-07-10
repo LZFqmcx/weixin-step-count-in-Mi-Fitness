@@ -12,7 +12,9 @@ def find_adb():
     candidates = [
         r"C:\Program Files\platform-tools\adb.exe",
         r"C:\Program Files (x86)\platform-tools\adb.exe",
+        r"D:\Program Files\platform-tools\adb.exe",
         r"C:\Android\sdk\platform-tools\adb.exe",
+        r"D:\Android\sdk\platform-tools\adb.exe",
         os.path.expanduser(r"~\AppData\Local\Android\Sdk\platform-tools\adb.exe"),
     ]
     for c in candidates:
