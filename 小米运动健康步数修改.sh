@@ -17,11 +17,33 @@ done
 [ -z "$PACKAGE" ] && { echo "未找到小米运动健康 App"; exit 1; }
 echo "App: $PACKAGE"
 
-for d in /data/data/$PACKAGE/databases/*/; do
-    [ -f "${d}cn/fitness_data" ] && DB_DIR="${d}cn" && break
-done
-[ -z "$DB_DIR" ] && { echo "未找到用户数据库"; exit 1; }
-echo "数据: $DB_DIR"
+# 支持通过环境变量 ACCOUNT 指定账号目录名
+if [ -n "$ACCOUNT" ]; then
+    if [ -f "/data/data/$PACKAGE/databases/$ACCOUNT/cn/fitness_data" ]; then
+        DB_DIR="/data/data/$PACKAGE/databases/$ACCOUNT/cn"
+        echo "数据: $DB_DIR (指定账号)"
+        FDB="$DB_DIR/fitness_data"
+        SDB="$DB_DIR/fitness_summary"
+    else
+        echo "指定账号 $ACCOUNT 不存在"
+        exit 1
+    fi
+else
+    BEST_DIR=""; BEST_TIME=0
+    for d in /data/data/$PACKAGE/databases/*/; do
+        [ -f "${d}cn/fitness_data" ] || continue
+        LATEST=$(sqlite3 "${d}cn/fitness_data" "SELECT MAX(time) FROM step_record WHERE key='steps' AND isDeleted=0;" 2>/dev/null)
+        echo "$LATEST" | grep -qE '^[0-9]+$' && [ "$LATEST" -gt "$BEST_TIME" ] && { BEST_TIME=$LATEST; BEST_DIR="${d}cn"; }
+    done
+    if [ -z "$BEST_DIR" ]; then
+        for d in /data/data/$PACKAGE/databases/*/; do
+            [ -f "${d}cn/fitness_data" ] && BEST_DIR="${d}cn" && break
+        done
+    fi
+    [ -z "$BEST_DIR" ] && { echo "未找到用户数据库"; exit 1; }
+    DB_DIR="$BEST_DIR"
+    echo "数据: $DB_DIR"
+fi
 
 FDB="$DB_DIR/fitness_data"
 SDB="$DB_DIR/fitness_summary"

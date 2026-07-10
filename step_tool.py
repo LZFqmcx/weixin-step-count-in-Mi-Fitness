@@ -29,25 +29,53 @@ if not ADB:
     sys.exit(1)
 
 SCRIPT = "/sdcard/stepmod.sh"
+CURRENT_ACCOUNT = ""
 
-def adb(args):
+def adb(args, account=""):
     try:
+        env = os.environ.copy()
+        if account:
+            env["ACCOUNT"] = account
         r = subprocess.run([ADB, "shell", "sh", SCRIPT] + args,
-                           capture_output=True, timeout=30)
+                           capture_output=True, timeout=30, env=env)
         out = r.stdout.decode("utf-8", errors="replace")
         err = r.stderr.decode("utf-8", errors="replace")
         return out, err, r.returncode
     except Exception as e:
         return "", str(e), -1
 
-def get_steps():
-    out, _, _ = adb(["view"])
+def list_accounts():
+    # 列出所有账号目录
+    r = subprocess.run([ADB, "shell", "ls", "/data/data/com.mi.health/databases/"],
+                       capture_output=True, timeout=10)
+    out = r.stdout.decode("utf-8", errors="replace")
+    accts = []
     for line in out.splitlines():
+        line = line.strip()
+        if line.isdigit():
+            # 检查是否有健身数据库
+            r2 = subprocess.run([ADB, "shell", "test", "-f",
+                f"/data/data/com.mi.health/databases/{line}/cn/fitness_data"],
+                capture_output=True, timeout=5)
+            if r2.returncode == 0:
+                accts.append(line)
+    return accts
+
+def get_steps(account=""):
+    out, _, _ = adb(["view"], account)
+    acct = ""
+    for line in out.splitlines():
+        if "数据:" in line:
+            parts = line.replace("\\", "/").split("/")
+            for i, p in enumerate(parts):
+                if p == "databases" and i + 1 < len(parts):
+                    acct = parts[i + 1]
+                    break
         if "今日步数:" in line:
             for p in line.split():
                 if p.isdigit():
-                    return int(p)
-    return None
+                    return int(p), acct
+    return None, acct
 
 class App:
     def __init__(self):
@@ -65,9 +93,18 @@ class App:
         self.step_lb.pack()
         tk.Label(self.root, text="当前步数", font=f, fg="gray").pack()
 
+        self.acct_var = tk.StringVar(value="")
+        acct_frame = tk.Frame(self.root)
+        acct_frame.pack(pady=2)
+        tk.Label(acct_frame, text="账号:", font=f).pack(side=tk.LEFT)
+        self.acct_combo = ttk.Combobox(acct_frame, textvariable=self.acct_var,
+                                        values=[], font=f, width=16, state="readonly")
+        self.acct_combo.pack(side=tk.LEFT, padx=5)
+        self.acct_combo.bind("<<ComboboxSelected>>", lambda e: self.refresh())
+
         self.op_var = tk.StringVar(value="set")
         frame = tk.Frame(self.root)
-        frame.pack(pady=10)
+        frame.pack(pady=5)
         for t, v in [("增加", "add"), ("减少", "sub"), ("指定", "set"), ("清零", "clear")]:
             tk.Radiobutton(frame, text=t, variable=self.op_var, value=v, font=f).pack(side=tk.LEFT, padx=5)
 
@@ -87,6 +124,7 @@ class App:
         self.log.tag_config("err", foreground="red")
 
         tk.Button(self.root, text="刷新步数", font=f, command=self.refresh).pack(pady=2)
+        self.refresh_accts()
         self.refresh()
 
     def log_append(self, text, tag=None):
@@ -95,12 +133,26 @@ class App:
         self.log.see(tk.END)
         self.log.config(state="disabled")
 
+    def refresh_accts(self):
+        accts = list_accounts()
+        self.acct_combo["values"] = accts
+        cur = self.acct_var.get()
+        if cur not in accts:
+            if accts:
+                self.acct_var.set(accts[0] if not cur else cur)
+
     def refresh(self):
-        s = get_steps()
+        acct = self.acct_var.get()
+        s, detected = get_steps(acct)
+        if not acct and detected:
+            self.acct_var.set(detected)
+            acct = detected
         if s is not None:
             self.step_var.set(str(s))
+            self.root.title(f"小米运动健康 - 步数修改工具 [账号: {acct or detected}]")
         else:
             self.step_var.set("???")
+            self.root.title("小米运动健康 - 步数修改工具")
 
     def do_mod(self):
         op = self.op_var.get()
@@ -114,7 +166,7 @@ class App:
                 return
             args = [op, val]
             self.log_append(f">> {op} {val}...", "ok")
-        out, err, code = adb(args)
+        out, err, code = adb(args, self.acct_var.get())
         for line in out.splitlines():
             self.log_append(line)
         if err.strip():

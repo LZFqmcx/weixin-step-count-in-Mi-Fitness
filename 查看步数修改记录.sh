@@ -9,10 +9,19 @@ for pkg in com.mi.health com.xiaomi.health com.xiaomi.hm.health; do
 done
 [ -z "$PACKAGE" ] && { echo "未找到小米运动健康 App"; exit 1; }
 
-for d in /data/data/$PACKAGE/databases/*/; do
-    [ -f "${d}cn/fitness_data" ] && DB_DIR="${d}cn" && break
-done
-[ -z "$DB_DIR" ] && { echo "未找到用户数据库"; exit 1; }
+if [ -n "$ACCOUNT" ]; then
+    DB_DIR="/data/data/$PACKAGE/databases/$ACCOUNT/cn"
+    [ -f "$DB_DIR/fitness_data" ] || { echo "账号 $ACCOUNT 不存在"; exit 1; }
+else
+    BEST_DIR=""; BEST_TIME=0
+    for d in /data/data/$PACKAGE/databases/*/; do
+        [ -f "${d}cn/fitness_data" ] || continue
+        LATEST=$(sqlite3 "${d}cn/fitness_data" "SELECT MAX(time) FROM step_record WHERE key='steps' AND isDeleted=0;" 2>/dev/null)
+        echo "$LATEST" | grep -qE '^[0-9]+$' && [ "$LATEST" -gt "$BEST_TIME" ] && { BEST_TIME=$LATEST; BEST_DIR="${d}cn"; }
+    done
+    [ -z "$BEST_DIR" ] && { echo "未找到用户数据库"; exit 1; }
+    DB_DIR="$BEST_DIR"
+fi
 
 FDB="$DB_DIR/fitness_data"
 SDB="$DB_DIR/fitness_summary"
