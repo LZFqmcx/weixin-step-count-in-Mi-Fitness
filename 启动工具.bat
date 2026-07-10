@@ -1,23 +1,24 @@
 @echo off
 cd /d "%~dp0"
 
-if exist "%LocalAppData%\Python\bin\pythonw.exe" (
-    "%LocalAppData%\Python\bin\pythonw.exe" "%~dp0step_tool.py"
-    exit /b
-)
+echo [Step Tool] Looking for Python...
 
-where pythonw >nul 2>&1
-if %errorlevel% equ 0 (
-    pythonw "%~dp0step_tool.py"
+if exist "%LocalAppData%\Python\bin\python.exe" (
+    echo [Step Tool] Found: %%LocalAppData%%\Python\bin\python.exe
+    "%LocalAppData%\Python\bin\python.exe" "%~dp0step_tool.py"
+    if errorlevel 1 pause
     exit /b
 )
 
 where python >nul 2>&1
 if %errorlevel% equ 0 (
+    echo [Step Tool] Found python in PATH
     python "%~dp0step_tool.py"
+    if errorlevel 1 pause
     exit /b
 )
 
-echo Python 3.x not found
-echo Install from https://www.python.org/downloads/
+echo [Step Tool] Python not found!
+echo Please install Python 3 from python.org
 pause
+exit /b

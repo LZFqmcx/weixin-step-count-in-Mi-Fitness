@@ -1,5 +1,5 @@
 import subprocess, os, sys, tkinter as tk
-from tkinter import messagebox
+from tkinter import ttk, messagebox
 
 # ---------- 自动检测 adb ----------
 def find_adb():
@@ -33,11 +33,11 @@ CURRENT_ACCOUNT = ""
 
 def adb(args, account=""):
     try:
-        env = os.environ.copy()
         if account:
-            env["ACCOUNT"] = account
-        r = subprocess.run([ADB, "shell", "sh", SCRIPT] + args,
-                           capture_output=True, timeout=30, env=env)
+            cmd = [ADB, "shell", f"ACCOUNT={account}", "sh", SCRIPT] + args
+        else:
+            cmd = [ADB, "shell", "sh", SCRIPT] + args
+        r = subprocess.run(cmd, capture_output=True, timeout=30)
         out = r.stdout.decode("utf-8", errors="replace")
         err = r.stderr.decode("utf-8", errors="replace")
         return out, err, r.returncode
